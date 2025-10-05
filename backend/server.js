@@ -1,7 +1,7 @@
 import express from "express";
 import cors from "cors";
 import multer from "multer";
-import nodemailer from "nodemailer";
+import { createTransport } from "nodemailer";
 import archiver from "archiver";
 import dotenv from "dotenv";
 import { fileURLToPath } from "url";
@@ -25,31 +25,42 @@ const upload = multer({
 });
 
 // ⚡ Configuração do Nodemailer para envio de emails
-const transporter = nodemailer.createTransporter({
-  service: 'gmail', // Ou outro provedor de email
+const transporter = createTransport({
+  service: 'gmail',
   auth: {
-    user: process.env.EMAIL_USER, // Email remetente
-    pass: process.env.EMAIL_PASS, // Senha do app ou senha do email
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
   },
 });
 
 // Middlewares
+const frontendPath = path.join(__dirname, '..', 'frontend');
 app.use(cors());
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
+// ⚡ SERVIR ARQUIVOS ESTÁTICOS DO FRONTEND
+// Isso permite que o backend sirva o frontend automaticamente
+app.use(express.static(frontendPath));
+
 // ⚡ Rota de healthcheck para verificar se o servidor está funcionando
 app.get("/api/health", (req, res) => {
-  res.json({ status: "OK", message: "Servidor TripFarm funcionando!" });
+  res.json({ 
+    status: "OK", 
+    message: "Servidor TripFarm funcionando!",
+    timestamp: new Date().toISOString(),
+    emailConfigured: !!process.env.EMAIL_USER
+  });
 });
 
-// ⚡ Rota principal que retorna informações sobre a API
-app.get("/", (req, res) => {
+// ⚡ Rota de informações da API
+app.get("/api/info", (req, res) => {
   res.json({
     message: "API TripFarm Backend",
     version: "1.0.0",
     endpoints: {
       health: "/api/health",
+      info: "/api/info",
       salvar: "/api/salvar"
     }
   });
@@ -58,35 +69,30 @@ app.get("/", (req, res) => {
 // ⚡ Função para criar arquivo ZIP com os dados do formulário
 async function criarZipComDados(formData, audioBuffer, audioFilename) {
   return new Promise((resolve, reject) => {
-    // Criar um buffer para armazenar o ZIP
     const chunks = [];
     
-    // Configurar o archiver
     const archive = archiver('zip', {
-      zlib: { level: 9 } // Compressão máxima
+      zlib: { level: 9 }
     });
 
-    // Capturar dados do ZIP em chunks
     archive.on('data', (chunk) => {
       chunks.push(chunk);
     });
 
-    // Quando o ZIP estiver finalizado
     archive.on('end', () => {
       const zipBuffer = Buffer.concat(chunks);
       resolve(zipBuffer);
     });
 
-    // Em caso de erro
     archive.on('error', (err) => {
       reject(err);
     });
 
-    // ⚡ Adicionar arquivo JSON com os dados do formulário
+    // Adicionar arquivo JSON
     const dadosJson = JSON.stringify(formData, null, 2);
     archive.append(dadosJson, { name: 'respostas.json' });
 
-    // ⚡ Adicionar arquivo TXT com os dados do formulário (formato legível)
+    // Adicionar arquivo TXT
     let dadosTxt = "=== RESPOSTAS DO FORMULÁRIO TRIPFARM ===\n\n";
     dadosTxt += `Data/Hora: ${new Date().toLocaleString('pt-BR')}\n`;
     dadosTxt += `Tipo de Formulário: ${formData.tipo_formulario || 'Não informado'}\n\n`;
@@ -99,12 +105,11 @@ async function criarZipComDados(formData, audioBuffer, audioFilename) {
     
     archive.append(dadosTxt, { name: 'respostas.txt' });
 
-    // ⚡ Adicionar arquivo de áudio se existir
+    // Adicionar áudio se existir
     if (audioBuffer && audioFilename) {
       archive.append(audioBuffer, { name: audioFilename });
     }
 
-    // Finalizar o arquivo ZIP
     archive.finalize();
   });
 }
@@ -144,13 +149,13 @@ async function enviarEmailComZip(zipBuffer, formData) {
   return transporter.sendMail(mailOptions);
 }
 
-// ⚡ Rota principal para salvar respostas (agora envia por email)
+// ⚡ Rota principal para salvar respostas
 app.post("/api/salvar", upload.single("audio"), async (req, res) => {
   try {
     const formData = req.body;
     const audioFile = req.file;
 
-    // ⚡ Validar campos obrigatórios
+    // Validar campos obrigatórios
     if (!formData.nome || !formData.cidade || !formData.sexo || !formData.ano_nascimento) {
       return res.status(400).json({ 
         success: false, 
@@ -158,14 +163,14 @@ app.post("/api/salvar", upload.single("audio"), async (req, res) => {
       });
     }
 
-    // ⚡ Preparar dados para o ZIP
+    // Preparar dados para o ZIP
     const dadosCompletos = {
       ...formData,
       data_envio: new Date().toISOString(),
       tem_audio: !!audioFile
     };
 
-    // ⚡ Preparar informações do áudio
+    // Preparar informações do áudio
     let audioBuffer = null;
     let audioFilename = null;
     
@@ -174,11 +179,11 @@ app.post("/api/salvar", upload.single("audio"), async (req, res) => {
       audioFilename = `audio_${Date.now()}.webm`;
     }
 
-    // ⚡ Criar arquivo ZIP com os dados
+    // Criar arquivo ZIP com os dados
     console.log('Criando arquivo ZIP com os dados...');
     const zipBuffer = await criarZipComDados(dadosCompletos, audioBuffer, audioFilename);
 
-    // ⚡ Enviar email com o ZIP anexado
+    // Enviar email com o ZIP anexado
     console.log('Enviando email...');
     await enviarEmailComZip(zipBuffer, dadosCompletos);
 
@@ -206,14 +211,18 @@ app.post("/api/salvar", upload.single("audio"), async (req, res) => {
   }
 });
 
-// ⚡ Iniciar servidor (apenas se não estiver sendo importado)
-if (import.meta.url === `file://${process.argv[1]}`) {
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Servidor TripFarm rodando na porta ${PORT}`);
-    console.log(`📧 Email configurado: ${process.env.EMAIL_USER ? 'SIM' : 'NÃO'}`);
-  });
-}
+// ⚡ ROTA CATCH-ALL: Servir o index.html para qualquer rota não-API
+// Isso garante que o frontend funcione corretamente
+app.get('*', (req, res) => {
+  res.sendFile(path.join(frontendPath, 'index.html'));
+});
 
-// ⚡ Exportar para uso em outros módulos ou deploy
+// ⚡ Iniciar servidor
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Servidor TripFarm rodando na porta ${PORT}`);
+  console.log(`📧 Email configurado: ${process.env.EMAIL_USER ? 'SIM' : 'NÃO'}`);
+  console.log(`🌐 Frontend sendo servido de: ${path.join(__dirname, 'frontend')}`);
+  console.log(`✅ Acesse: http://localhost:${PORT}`);
+});
+
 export default app;
-
