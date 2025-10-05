@@ -1,0 +1,5 @@
+window.env = {
+  NEXT_PUBLIC_SUPABASE_URL: "https://osicnbtykwdflygwqrux.supabase.co",
+  NEXT_PUBLIC_SUPABASE_ANON_KEY:
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9zaWNuYnR5a3dkZmx5Z3dxcnV4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY4OTM1ODEsImV4cCI6MjA3MjQ2OTU4MX0.aQYiwhCHLwI4-8-cvDH5rMjFAtSg5NUQIeZBy8LED8E",
+};

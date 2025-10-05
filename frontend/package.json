@@ -1,0 +1,19 @@
+{
+  "name": "tripfarm-pesquisas-frontend",
+  "version": "1.0.0",
+  "description": "Frontend para formulários de pesquisa TripFarm",
+  "main": "index.html",
+  "scripts": {
+    "dev": "python3 -m http.server 8080",
+    "start": "python3 -m http.server 8080"
+  },
+  "keywords": [
+    "formularios",
+    "pesquisa",
+    "frontend",
+    "tripfarm"
+  ],
+  "author": "TripFarm",
+  "license": "MIT"
+}
+

@@ -1,0 +1,28 @@
+{
+  "name": "tripfarm-pesquisas-backend",
+  "version": "1.0.0",
+  "description": "Backend para formulários de pesquisa TripFarm - Envia dados por email",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "archiver": "^7.0.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
+    "express": "^4.21.2",
+    "multer": "^1.4.5-lts.1",
+    "nodemailer": "^7.0.6"
+  },
+  "keywords": [
+    "formularios",
+    "pesquisa",
+    "audio",
+    "email",
+    "tripfarm"
+  ],
+  "author": "TripFarm",
+  "license": "MIT"
+}
