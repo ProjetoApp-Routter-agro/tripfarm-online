@@ -26,11 +26,14 @@ const upload = multer({
 
 // ⚡ Configuração do Nodemailer para envio de emails
 const transporter = createTransport({
-  service: 'gmail',
+  host: 'smtp.gmail.com',
+  port: 465,
+  secure: true, // SSL
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
   },
+  connectionTimeout: 10000, // Timeout aumentado
 });
 
 // Middlewares
