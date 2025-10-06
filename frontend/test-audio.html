@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste de Gravação de Áudio - TripFarm</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 700px;
+            margin: 50px auto;
+            padding: 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        button {
+            padding: 12px 24px;
+            margin: 10px 5px;
+            font-size: 16px;
+            cursor: pointer;
+            border: none;
+            border-radius: 8px;
+            transition: all 0.3s;
+            font-weight: bold;
+        }
+        button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        #btnGravar {
+            background: #e74c3c;
+            color: white;
+        }
+        #btnParar {
+            background: #95a5a6;
+            color: white;
+        }
+        #btnReproducir {
+            background: #27ae60;
+            color: white;
+        }
+        #btnBaixar {
+            background: #3498db;
+            color: white;
+        }
+        #status {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+            font-weight: bold;
+        }
+        .success { color: #27ae60; }
+        .error { color: #e74c3c; }
+        .warning { color: #f39c12; }
+        #info {
+            margin: 20px 0;
+            padding: 15px;
+            background: #ecf0f1;
+            border-radius: 8px;
+        }
+        #info h3 {
+            margin-top: 0;
+            color: #2c3e50;
+        }
+        #info ul {
+            list-style: none;
+            padding: 0;
+        }
+        #info li {
+            padding: 8px 0;
+            border-bottom: 1px solid #bdc3c7;
+        }
+        #info li:last-child {
+            border-bottom: none;
+        }
+        audio {
+            width: 100%;
+            margin-top: 20px;
+            border-radius: 8px;
+        }
+        .button-group {
+            text-align: center;
+            margin: 20px 0;
+        }
+        .instructions {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .instructions h3 {
+            margin-top: 0;
+            color: #856404;
+        }
+        .instructions ol {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        .instructions li {
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎤 Teste de Gravação de Áudio</h1>
+        
+        <div class="instructions">
+            <h3>📋 Como usar:</h3>
+            <ol>
+                <li>Clique em "Iniciar Gravação"</li>
+                <li>Permita o acesso ao microfone quando solicitado</li>
+                <li>Fale algo (ex: "Testando, um, dois, três")</li>
+                <li>Clique em "Parar Gravação"</li>
+                <li>Clique em "Reproduzir" para ouvir</li>
+                <li>Clique em "Baixar" para salvar o arquivo</li>
+            </ol>
+        </div>
+        
+        <div id="status">Status: Aguardando...</div>
+        
+        <div class="button-group">
+            <button id="btnGravar">🔴 Iniciar Gravação</button>
+            <button id="btnParar" disabled>⏹️ Parar Gravação</button>
+            <button id="btnReproducir" disabled>▶️ Reproduzir</button>
+            <button id="btnBaixar" disabled>💾 Baixar</button>
+        </div>
+        
+        <div id="info"></div>
+        
+        <audio id="audioPlayer" controls style="display: none;"></audio>
+    </div>
+
+    <script>
+        let mediaRecorder;
+        let audioChunks = [];
+        let audioBlob;
+        let startTime;
+        
+        const btnGravar = document.getElementById('btnGravar');
+        const btnParar = document.getElementById('btnParar');
+        const btnReproducir = document.getElementById('btnReproducir');
+        const btnBaixar = document.getElementById('btnBaixar');
+        const status = document.getElementById('status');
+        const info = document.getElementById('info');
+        const audioPlayer = document.getElementById('audioPlayer');
+        
+        function updateStatus(message, type = 'success') {
+            status.innerHTML = `<span class="${type}">${message}</span>`;
+            console.log(message);
+        }
+        
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
+        }
+        
+        function formatDuration(ms) {
+            const seconds = Math.floor(ms / 1000);
+            const minutes = Math.floor(seconds / 60);
+            const remainingSeconds = seconds % 60;
+            return minutes > 0 
+                ? `${minutes}m ${remainingSeconds}s` 
+                : `${remainingSeconds}s`;
+        }
+        
+        btnGravar.addEventListener('click', async () => {
+            try {
+                updateStatus('🎤 Solicitando permissão do microfone...', 'warning');
+                
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        sampleRate: 44100
+                    } 
+                });
+                
+                updateStatus('✅ Permissão concedida! Iniciando gravação...', 'success');
+                
+                mediaRecorder = new MediaRecorder(stream, {
+                    mimeType: 'audio/webm'
+                });
+                
+                audioChunks = [];
+                startTime = Date.now();
+                
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        audioChunks.push(event.data);
+                        console.log('📦 Chunk de áudio recebido:', event.data.size, 'bytes');
+                    }
+                };
+                
+                mediaRecorder.onstop = () => {
+                    const duration = Date.now() - startTime;
+                    audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    const audioUrl = URL.createObjectURL(audioBlob);
+                    audioPlayer.src = audioUrl;
+                    audioPlayer.style.display = 'block';
+                    
+                    updateStatus(`✅ Gravação concluída! Tamanho: ${formatBytes(audioBlob.size)}`, 'success');
+                    
+                    info.innerHTML = `
+                        <h3>📊 Informações do Áudio:</h3>
+                        <ul>
+                            <li><strong>Tipo MIME:</strong> ${audioBlob.type}</li>
+                            <li><strong>Tamanho:</strong> ${formatBytes(audioBlob.size)}</li>
+                            <li><strong>Duração:</strong> ${formatDuration(duration)}</li>
+                            <li><strong>Chunks recebidos:</strong> ${audioChunks.length}</li>
+                            <li><strong>Formato:</strong> WebM (compatível com navegadores modernos)</li>
+                        </ul>
+                        <p style="color: #27ae60; font-weight: bold;">
+                            ✅ O áudio foi gravado com sucesso! 
+                            ${audioBlob.size > 1000 ? 'Tamanho adequado para envio.' : '⚠️ Tamanho muito pequeno, grave por mais tempo.'}
+                        </p>
+                    `;
+                    
+                    btnReproducir.disabled = false;
+                    btnBaixar.disabled = false;
+                    
+                    // Parar todas as tracks
+                    stream.getTracks().forEach(track => track.stop());
+                };
+                
+                mediaRecorder.onerror = (event) => {
+                    console.error('Erro no MediaRecorder:', event.error);
+                    updateStatus(`❌ Erro na gravação: ${event.error.name}`, 'error');
+                };
+                
+                mediaRecorder.start(100); // Capturar chunks a cada 100ms
+                updateStatus('🔴 GRAVANDO... Fale algo e clique em "Parar Gravação"', 'warning');
+                
+                btnGravar.disabled = true;
+                btnParar.disabled = false;
+                btnReproducir.disabled = true;
+                btnBaixar.disabled = true;
+                
+            } catch (error) {
+                updateStatus(`❌ Erro: ${error.message}`, 'error');
+                console.error('Erro completo:', error);
+                
+                let errorMessage = '';
+                
+                if (error.name === 'NotAllowedError') {
+                    errorMessage = `
+                        <h3>⚠️ Permissão Negada</h3>
+                        <p>Você precisa permitir o acesso ao microfone.</p>
+                        <p><strong>Como resolver:</strong></p>
+                        <ol>
+                            <li>Clique no ícone de cadeado/câmera na barra de endereço</li>
+                            <li>Selecione "Permitir" para o microfone</li>
+                            <li>Recarregue a página</li>
+                            <li>Tente gravar novamente</li>
+                        </ol>
+                    `;
+                } else if (error.name === 'NotFoundError') {
+                    errorMessage = `
+                        <h3>⚠️ Microfone Não Encontrado</h3>
+                        <p>Nenhum dispositivo de áudio foi detectado.</p>
+                        <p><strong>Verifique:</strong></p>
+                        <ul>
+                            <li>Se o microfone está conectado</li>
+                            <li>Se o microfone está habilitado nas configurações do sistema</li>
+                            <li>Se outro aplicativo não está usando o microfone</li>
+                        </ul>
+                    `;
+                } else if (error.name === 'NotReadableError') {
+                    errorMessage = `
+                        <h3>⚠️ Microfone em Uso</h3>
+                        <p>O microfone está sendo usado por outro aplicativo.</p>
+                        <p>Feche outros aplicativos que possam estar usando o microfone e tente novamente.</p>
+                    `;
+                } else {
+                    errorMessage = `
+                        <h3>❌ Erro Desconhecido</h3>
+                        <p><strong>Nome:</strong> ${error.name}</p>
+                        <p><strong>Mensagem:</strong> ${error.message}</p>
+                        <p>Tente recarregar a página ou usar outro navegador (Chrome/Edge recomendados).</p>
+                    `;
+                }
+                
+                info.innerHTML = errorMessage;
+            }
+        });
+        
+        btnParar.addEventListener('click', () => {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+                updateStatus('⏹️ Parando gravação...', 'warning');
+                btnGravar.disabled = false;
+                btnParar.disabled = true;
+            }
+        });
+        
+        btnReproducir.addEventListener('click', () => {
+            audioPlayer.play();
+            updateStatus('▶️ Reproduzindo áudio...', 'success');
+        });
+        
+        btnBaixar.addEventListener('click', () => {
+            const url = URL.createObjectURL(audioBlob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `teste_audio_tripfarm_${Date.now()}.webm`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            updateStatus('💾 Download iniciado! Verifique a pasta de Downloads.', 'success');
+        });
+        
+        // Verificar suporte do navegador
+        window.addEventListener('load', () => {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                updateStatus('❌ Seu navegador não suporta gravação de áudio', 'error');
+                info.innerHTML = `
+                    <h3>⚠️ Navegador Não Suportado</h3>
+                    <p>Seu navegador não suporta a API de gravação de áudio.</p>
+                    <p><strong>Navegadores recomendados:</strong></p>
+                    <ul>
+                        <li>Google Chrome (versão 60+)</li>
+                        <li>Microsoft Edge (versão 79+)</li>
+                        <li>Firefox (versão 55+)</li>
+                        <li>Safari (versão 11+)</li>
+                    </ul>
+                `;
+                btnGravar.disabled = true;
+            } else {
+                console.log('✅ Navegador suporta gravação de áudio');
+                console.log('MediaRecorder suportado:', typeof MediaRecorder !== 'undefined');
+            }
+        });
+    </script>
+</body>
+</html>
