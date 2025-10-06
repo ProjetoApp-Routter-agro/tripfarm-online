@@ -41,7 +41,7 @@ app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
 // ⚡ SERVIR ARQUIVOS ESTÁTICOS DO FRONTEND
 // Isso permite que o backend sirva o frontend automaticamente
-app.use(express.static(frontendPath));
+app.use(express.static(path.join(__dirname, 'frontend')));
 
 // ⚡ Rota de healthcheck para verificar se o servidor está funcionando
 app.get("/api/health", (req, res) => {
