@@ -24,16 +24,16 @@ const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024 }, // Limite de 10MB
 });
 
-// ⚡ Configuração do Nodemailer para envio de emails
+// ⚡ Configuração do Nodemailer com SMTP2GO
+// SMTP2GO funciona perfeitamente com Render (sem bloqueios)
+// Plano gratuito: 1.000 emails/mês - https://www.smtp2go.com
 const transporter = createTransport({
-  host: 'smtp.gmail.com',
-  port: 465,
-  secure: true, // SSL
+  host: 'mail.smtp2go.com',
+  port: 2525, // Porta alternativa (não bloqueada pela Render)
   auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
+    user: process.env.SMTP2GO_USER, // Configure na Render: Settings → Environment
+    pass: process.env.SMTP2GO_PASS, // Configure na Render: Settings → Environment
   },
-  connectionTimeout: 10000, // Timeout aumentado
 });
 
 // Middlewares
@@ -212,6 +212,28 @@ app.post("/api/salvar", upload.single("audio"), async (req, res) => {
       error: "Erro interno do servidor. Tente novamente." 
     });
   }
+});
+
+// ⚡ ROTAS DIRETAS PARA QR CODES
+// Redireciona para o formulário específico com parâmetro
+app.get('/visitante', (req, res) => {
+  res.redirect('/?form=visitante');
+});
+
+app.get('/produtor', (req, res) => {
+  res.redirect('/?form=produtor-tradicional');
+});
+
+app.get('/produtor-tradicional', (req, res) => {
+  res.redirect('/?form=produtor-tradicional');
+});
+
+app.get('/produtor-digital', (req, res) => {
+  res.redirect('/?form=produtor-digital');
+});
+
+app.get('/produtor_digital', (req, res) => {
+  res.redirect('/?form=produtor-digital');
 });
 
 // ⚡ ROTA CATCH-ALL: Servir o index.html para qualquer rota não-API
