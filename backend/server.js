@@ -123,7 +123,7 @@ async function enviarEmailComZip(zipBuffer, formData) {
   const tipoFormulario = formData.tipo_formulario || 'formulário';
   
   const mailOptions = {
-    from: process.env.EMAIL_USER,
+    from: `"TripFarm Pesquisas" <${process.env.EMAIL_USER || 'noreply@tripfarm.com.br'}>`,
     to: 'tripfarm.oficial@gmail.com',
     subject: `Nova resposta TripFarm - ${tipoFormulario} - ${nomeUsuario}`,
     html: `
