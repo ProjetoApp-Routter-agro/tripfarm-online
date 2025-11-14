@@ -37,7 +37,7 @@ const transporter = createTransport({
 });
 
 // Middlewares
-const frontendPath = path.join(__dirname, '..', 'frontend');
+const frontendPath = path.join(__dirname, 'frontend');
 app.use(cors());
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
@@ -52,7 +52,8 @@ app.get("/api/health", (req, res) => {
     status: "OK", 
     message: "Servidor TripFarm funcionando!",
     timestamp: new Date().toISOString(),
-    emailConfigured: !!process.env.EMAIL_USER
+    emailConfigured: !!process.env.SMTP2GO_USER,
+    smtpHost: 'mail.smtp2go.com'
   });
 });
 
@@ -60,7 +61,8 @@ app.get("/api/health", (req, res) => {
 app.get("/api/info", (req, res) => {
   res.json({
     message: "API TripFarm Backend",
-    version: "1.0.0",
+    version: "2.0.0",
+    emailService: "SMTP2GO",
     endpoints: {
       health: "/api/health",
       info: "/api/info",
@@ -122,9 +124,13 @@ async function enviarEmailComZip(zipBuffer, formData) {
   const nomeUsuario = formData.nome || 'Usuário';
   const tipoFormulario = formData.tipo_formulario || 'formulário';
   
+  // ✅ CORREÇÃO DO BLANK SENDER: Formato correto com nome e email
+  const senderEmail = process.env.EMAIL_USER || 'noreply@tripfarmoficial.com.br';
+  
   const mailOptions = {
-    from: `"TripFarm Pesquisas" <${process.env.EMAIL_USER || 'noreply@tripfarm.com.br'}>`,
+    from: `"TripFarm Pesquisas" <${senderEmail}>`, // ✅ Formato correto!
     to: 'tripfarm.oficial@gmail.com',
+    replyTo: 'tripfarm.oficial@gmail.com',
     subject: `Nova resposta TripFarm - ${tipoFormulario} - ${nomeUsuario}`,
     html: `
       <h2>Nova resposta recebida no TripFarm</h2>
@@ -158,6 +164,13 @@ app.post("/api/salvar", upload.single("audio"), async (req, res) => {
     const formData = req.body;
     const audioFile = req.file;
 
+    console.log('📝 Recebendo formulário:', {
+      nome: formData.nome,
+      cidade: formData.cidade,
+      tipo: formData.tipo_formulario,
+      temAudio: !!audioFile
+    });
+
     // Validar campos obrigatórios
     if (!formData.nome || !formData.cidade || !formData.sexo || !formData.ano_nascimento) {
       return res.status(400).json({ 
@@ -180,17 +193,18 @@ app.post("/api/salvar", upload.single("audio"), async (req, res) => {
     if (audioFile) {
       audioBuffer = audioFile.buffer;
       audioFilename = `audio_${Date.now()}.webm`;
+      console.log(`🎤 Áudio recebido: ${(audioFile.size / 1024).toFixed(2)} KB`);
     }
 
     // Criar arquivo ZIP com os dados
-    console.log('Criando arquivo ZIP com os dados...');
+    console.log('📦 Criando arquivo ZIP com os dados...');
     const zipBuffer = await criarZipComDados(dadosCompletos, audioBuffer, audioFilename);
+    console.log(`✅ ZIP criado: ${(zipBuffer.length / 1024).toFixed(2)} KB`);
 
     // Enviar email com o ZIP anexado
-    console.log('Enviando email...');
-    await enviarEmailComZip(zipBuffer, dadosCompletos);
-
-    console.log('Email enviado com sucesso!');
+    console.log('📧 Enviando email via SMTP2GO...');
+    const info = await enviarEmailComZip(zipBuffer, dadosCompletos);
+    console.log('✅ Email enviado com sucesso!', info.messageId);
     
     res.json({
       success: true,
@@ -206,10 +220,16 @@ app.post("/api/salvar", upload.single("audio"), async (req, res) => {
     });
 
   } catch (err) {
-    console.error("Erro ao processar formulário:", err);
+    console.error("❌ Erro ao processar formulário:", err);
+    console.error("Detalhes do erro:", {
+      message: err.message,
+      code: err.code,
+      command: err.command
+    });
+    
     res.status(500).json({ 
       success: false, 
-      error: "Erro interno do servidor. Tente novamente." 
+      error: "Erro ao enviar email. Verifique as configurações do SMTP2GO." 
     });
   }
 });
@@ -245,9 +265,11 @@ app.get('*', (req, res) => {
 // ⚡ Iniciar servidor
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Servidor TripFarm rodando na porta ${PORT}`);
-  console.log(`📧 Email configurado: ${process.env.EMAIL_USER ? 'SIM' : 'NÃO'}`);
+  console.log(`📧 SMTP configurado: ${process.env.SMTP2GO_USER ? 'SIM ✅' : 'NÃO ❌'}`);
+  console.log(`📧 Email remetente: ${process.env.EMAIL_USER || 'noreply@tripfarmoficial.com.br'}`);
   console.log(`🌐 Frontend sendo servido de: ${path.join(__dirname, 'frontend')}`);
-  console.log(`✅ Acesse: http://localhost:${PORT}`);
+  console.log(`✅ Servidor pronto!`);
 });
 
 export default app;
+
